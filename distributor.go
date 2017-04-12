@@ -3,10 +3,10 @@ package msgrelay
 import "sync"
 
 type Distributor struct {
-	sync.Mutex
 	users map[UserID]*User
 	addU  chan *User
 	remU  chan UserID
+	getU  chan *UserList
 	msgs  chan *Message
 	quit  chan bool
 }
@@ -16,6 +16,7 @@ func NewDistributor() *Distributor {
 		users: make(map[UserID]*User),
 		addU:  make(chan *User),
 		remU:  make(chan UserID),
+		getU:  make(chan *UserList),
 		msgs:  make(chan *Message),
 		quit:  make(chan bool),
 	}
@@ -33,31 +34,30 @@ func (d *Distributor) RemoveUser(uid UserID) {
 	d.remU <- uid
 }
 
-func (d *Distributor) GetUsers(uids ...UserID) (res chan *User) {
-	res = make(chan *User)
-	go func() {
-		d.Lock()
-		for _, uid := range uids {
-			u, _ := d.users[uid]
-			res <- u
-		}
-		d.Unlock()
-	}()
-	return res
+func (d *Distributor) GetUsers(ids ...UserID) []*User {
+	users := make([]*User, len(ids))
+	l := NewUserList(ids...)
+	d.getU <- l
+	for i := 0; i < len(ids); i++ {
+		users[i] = <-l.c
+	}
+	return users
 }
 
 func (d *Distributor) runService() {
 	for {
 		select {
 		case u := <-d.addU:
-			d.Lock()
 			d.users[u.id] = u
-			d.Unlock()
 
 		case i := <-d.remU:
-			d.Lock()
 			delete(d.users, i)
-			d.Unlock()
+
+		case l := <-d.getU:
+			for _, id := range l.ids {
+				u, _ := d.users[id]
+				l.c <- u
+			}
 
 		case <-d.quit:
 			return

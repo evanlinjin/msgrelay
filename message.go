@@ -13,3 +13,11 @@ type Message struct {
 	data interface{}
 	sent time.Time
 }
+
+func NewMessage(from, to UserID, data interface{}) *Message {
+	return &Message{
+		from: from,
+		toUser: to,
+		data: data,
+	}
+}
