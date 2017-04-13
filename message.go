@@ -16,8 +16,8 @@ type Message struct {
 
 func NewMessage(from, to UserID, data interface{}) *Message {
 	return &Message{
-		from: from,
+		from:   from,
 		toUser: to,
-		data: data,
+		data:   data,
 	}
 }

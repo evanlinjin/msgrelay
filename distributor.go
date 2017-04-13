@@ -1,7 +1,5 @@
 package msgrelay
 
-import "sync"
-
 type Distributor struct {
 	users map[UserID]*User
 	addU  chan *User
@@ -20,7 +18,7 @@ func NewDistributor() *Distributor {
 		msgs:  make(chan *Message),
 		quit:  make(chan bool),
 	}
-	d.runService()
+	go d.runService()
 	return &d
 }
 
