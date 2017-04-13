@@ -77,7 +77,7 @@ func (u *User) runService() {
 		case msg := <-u.msgs:
 			u.Lock()
 			for _, s := range u.sessions {
-				s.SendMsg(msg)
+				s.ReceiveMessage(msg)
 			}
 			u.Unlock()
 
