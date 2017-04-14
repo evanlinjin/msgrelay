@@ -1,6 +1,9 @@
 package msgrelay
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type UserID string
 
@@ -12,7 +15,7 @@ type User struct {
 	addS     chan *Session
 	remS     chan SessionID
 	msgs     chan *Message
-	quit     chan bool
+	quit     chan struct{}
 }
 
 func NewUser(id UserID) *User {
@@ -22,7 +25,7 @@ func NewUser(id UserID) *User {
 		addS:   make(chan *Session),
 		remS:   make(chan SessionID),
 		msgs:   make(chan *Message),
-		quit:   make(chan bool),
+		quit:   make(chan struct{}),
 	}
 	go u.runService()
 	return &u
@@ -88,5 +91,12 @@ func (u *User) runService() {
 }
 
 func (u *User) endService() {
-	u.quit <- true
+	select {
+	case u.quit <- struct{}{}:
+		fmt.Println("[User]", u.id, ": service ended.")
+	default:
+	}
+	for _, s := range u.sessions {
+		s.endService()
+	}
 }

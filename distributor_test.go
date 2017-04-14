@@ -7,44 +7,69 @@ import (
 	"time"
 )
 
-func TestDistributor_AddUser(t *testing.T) {
-	d := NewDistributor()
-	u := d.AddUser("test_uid")
-
-	sessions := make([]*Session, 3)
-	channels := make([]chan *Message, 3)
-
-	for i := 0; i < len(sessions); i++ {
-		sessions[i] = u.AddSession("session" + strconv.Itoa(i))
-		channels[i] = sessions[i].SetOnline()
-	}
-
+func makeNewUserWithSessions(
+	distributor *Distributor,
+	uid UserID,
+	nSessions int,
+) (
+	user *User,
+	quitFunc func(),
+) {
+	user = distributor.AddUser(uid)
+	sessions := make([]*Session, nSessions)
 	quitChan := make(chan struct{})
 
-	go func() {
+	for i := 0; i < nSessions; i++ {
+		sessions[i] = user.AddSession(
+			SessionID(string(uid) + "_session" + strconv.Itoa(i)),
+		)
+		sessions[i].SetStatus(Online)
+
+		go func(sid SessionID, c chan *Message, q chan struct{}){
+			for {
+				select {
+				case msg := <-c:
+					fmt.Printf("[%s] Message: %v\n", sid, msg.data)
+				case <-q:
+					fmt.Printf("[Listener] %s : listener ended.\n", sid)
+					return
+				}
+			}
+		}(sessions[i].id, sessions[i].C, quitChan)
+	}
+
+	quitFunc = func() {
 		for {
 			select {
-			case m := <-channels[0]:
-				fmt.Println("[s1]", m.data)
-			case m := <-channels[1]:
-				fmt.Println("[s2]", m.data)
-			case m := <-channels[2]:
-				fmt.Println("[s3]", m.data)
-			case <-quitChan:
+			case quitChan<- struct{}{}:
+			default:
 				return
 			}
 		}
-	}()
+	}
+	return
+}
 
-	m := u.NewMsg("test_uid", "Hello, this is a test")
-	u.ReceiveMsg(m)
+func TestDistributor_AddUser(t *testing.T) {
+	d := NewDistributor()
+	_, q := makeNewUserWithSessions(d, "user0", 10)
+	d.EndAll()
+	q()
+	<-time.NewTimer(time.Second).C
+}
 
-	timer := time.NewTimer(time.Second)
-	<-timer.C
-
-	u.endService()
-	d.endService()
-
-	timer = time.NewTimer(time.Second)
-	<-timer.C
+func TestDistributor_AddUser2(t *testing.T) {
+	const nUsers = 10
+	d := NewDistributor()
+	users := make([]*User, nUsers)
+	quits := make([]func(), nUsers)
+	for i := 0; i < nUsers; i++ {
+		users[i], quits[i] = makeNewUserWithSessions(
+			d, UserID("user" + strconv.Itoa(i)), 1)
+	}
+	d.EndAll()
+	for _, q := range quits {
+		q()
+	}
+	<-time.NewTimer(2*time.Second).C
 }

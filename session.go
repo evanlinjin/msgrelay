@@ -1,6 +1,9 @@
 package msgrelay
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 const (
 	Online  = true
@@ -20,7 +23,7 @@ type Session struct {
 }
 
 func NewSession(id SessionID) *Session {
-	return &Session{
+	s := Session{
 		id:         id,
 		status:     false,
 		msgChan:    make(chan *Message),
@@ -28,19 +31,12 @@ func NewSession(id SessionID) *Session {
 		quitChan:   make(chan struct{}),
 		C:          make(chan *Message),
 	}
+	go s.runService()
+	return &s
 }
 
-func (s *Session) SetOnline() chan *Message {
-	s.RLock()
-	defer s.RUnlock()
-	s.status = true
-	return s.msgChan
-}
-
-func (s *Session) SetOffline() {
-	s.RLock()
-	defer s.RUnlock()
-	s.status = false
+func (s *Session) SetStatus(status bool) {
+	s.statusChan <- status
 }
 
 func (s *Session) ReceiveMessage(msg *Message) {
@@ -74,5 +70,13 @@ func (s *Session) runService() {
 		case <-s.quitChan:
 			return
 		}
+	}
+}
+
+func (s *Session) endService() {
+	select {
+	case s.quitChan <- struct{}{}:
+		fmt.Println("[Session]", s.id, ": service ended.")
+	default:
 	}
 }

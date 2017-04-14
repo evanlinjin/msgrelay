@@ -1,5 +1,7 @@
 package msgrelay
 
+import "fmt"
+
 type Distributor struct {
 	users map[UserID]*User
 	addU  chan *User
@@ -42,6 +44,10 @@ func (d *Distributor) GetUsers(ids ...UserID) []*User {
 	return users
 }
 
+func (d *Distributor) EndAll() {
+	d.endService()
+}
+
 func (d *Distributor) runService() {
 	for {
 		select {
@@ -64,5 +70,12 @@ func (d *Distributor) runService() {
 }
 
 func (d *Distributor) endService() {
-	d.quit <- true
+	select {
+	case d.quit <- true:
+		fmt.Println("[Distributor] service ended.")
+	default:
+	}
+	for _, u := range d.users {
+		u.endService()
+	}
 }
